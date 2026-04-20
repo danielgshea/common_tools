@@ -270,13 +270,21 @@ def list_events_from_all_calendars(
         return json.dumps({"error": f"Error: {str(e)}"})
 
 
-# Export all tools
-CALENDAR_TOOLS = [
+# Export tools separated by safety level
+# Safe tools: Read-only operations that don't modify data
+CALENDAR_TOOLS_S = [
     list_calendars,
     list_events,
     list_events_from_multiple_calendars,
     list_events_from_all_calendars,
+]
+
+# Dangerous tools: Write operations that modify data
+CALENDAR_TOOLS_D = [
     create_event,
     update_event,
-    delete_event
+    delete_event,
 ]
+
+# All tools combined (for backward compatibility)
+CALENDAR_TOOLS = CALENDAR_TOOLS_S + CALENDAR_TOOLS_D
