@@ -171,18 +171,24 @@ print("\n🔧 Step 5: Testing LangChain Tool Wrappers")
 print("-" * 80)
 
 try:
-    from gmail.tools import GMAIL_TOOLS
-    from gcalendar.tools import CALENDAR_TOOLS
-    from filesystem.tools import create_file_tool, read_file_tool, list_files_tool
+    from gmail.tools import GMAIL_TOOLS, GMAIL_TOOLS_S, GMAIL_TOOLS_D
+    from gcalendar.tools import CALENDAR_TOOLS, CALENDAR_TOOLS_S, CALENDAR_TOOLS_D
+    from filesystem.tools import FILE_SYSTEM_TOOLS, FILE_SYSTEM_TOOLS_S, FILE_SYSTEM_TOOLS_D
     
-    print(f"✅ Gmail tools loaded: {len(GMAIL_TOOLS)} tools")
-    print(f"   Sample: {', '.join([t.name for t in GMAIL_TOOLS[:3]])}")
+    print(f"✅ Gmail tools loaded:")
+    print(f"   Total: {len(GMAIL_TOOLS)} tools")
+    print(f"   Safe (read-only): {len(GMAIL_TOOLS_S)} tools")
+    print(f"   Dangerous (write): {len(GMAIL_TOOLS_D)} tools")
     
-    print(f"\n✅ Calendar tools loaded: {len(CALENDAR_TOOLS)} tools")
-    print(f"   Sample: {', '.join([t.name for t in CALENDAR_TOOLS[:3]])}")
+    print(f"\n✅ Calendar tools loaded:")
+    print(f"   Total: {len(CALENDAR_TOOLS)} tools")
+    print(f"   Safe (read-only): {len(CALENDAR_TOOLS_S)} tools")
+    print(f"   Dangerous (write): {len(CALENDAR_TOOLS_D)} tools")
     
-    print(f"\n✅ Filesystem tools loaded")
-    print(f"   Tools: {create_file_tool.name}, {read_file_tool.name}, {list_files_tool.name}")
+    print(f"\n✅ Filesystem tools loaded:")
+    print(f"   Total: {len(FILE_SYSTEM_TOOLS)} tools")
+    print(f"   Safe (read-only): {len(FILE_SYSTEM_TOOLS_S)} tools")
+    print(f"   Dangerous (write): {len(FILE_SYSTEM_TOOLS_D)} tools")
     
     print("\n✅ LangChain tool wrappers: ALL WORKING")
     

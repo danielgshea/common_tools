@@ -232,11 +232,20 @@ def list_files_tool(
         }
 
 
-FILE_SYSTEM_TOOLS = [
-    create_file_tool,
+# Export tools separated by safety level
+# Safe tools: Read-only operations that don't modify data
+FILE_SYSTEM_TOOLS_S = [
     read_file_tool,
+    file_exists_tool,
+    list_files_tool,
+]
+
+# Dangerous tools: Write operations that modify data
+FILE_SYSTEM_TOOLS_D = [
+    create_file_tool,
     write_file_tool,
     delete_file_tool,
-    file_exists_tool,
-    list_files_tool
 ]
+
+# All tools combined (for backward compatibility)
+FILE_SYSTEM_TOOLS = FILE_SYSTEM_TOOLS_S + FILE_SYSTEM_TOOLS_D

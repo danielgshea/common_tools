@@ -420,20 +420,28 @@ def send_draft(draft_id: str) -> str:
         return json.dumps({"error": f"Error: {str(e)}"})
 
 
-# Export all tools
-GMAIL_TOOLS = [
+# Export tools separated by safety level
+# Safe tools: Read-only operations that don't modify data
+GMAIL_TOOLS_S = [
     list_messages,
     read_message,
+    search_emails,
+    list_gmail_labels,
+]
+
+# Dangerous tools: Write operations that modify data
+GMAIL_TOOLS_D = [
     send_email,
     reply_to_email,
-    search_emails,
     mark_as_read,
     mark_as_unread,
     trash_email,
     untrash_email,
-    list_gmail_labels,
     add_labels_to_message,
     remove_labels_from_message,
     create_draft,
-    send_draft
+    send_draft,
 ]
+
+# All tools combined (for backward compatibility)
+GMAIL_TOOLS = GMAIL_TOOLS_S + GMAIL_TOOLS_D
