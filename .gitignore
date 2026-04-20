@@ -1,5 +1,6 @@
 # Python
 __pycache__/
+**/__pycache__/**
 *.py[cod]
 *$py.class
 *.so
@@ -27,8 +28,10 @@ MANIFEST
 venv/
 env/
 ENV/
+
 env.bak/
 venv.bak/
+.venv
 
 # IDE
 .vscode/

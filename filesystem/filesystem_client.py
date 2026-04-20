@@ -16,9 +16,30 @@ class FileSystemClient:
         
         Args:
             base_path: Optional base directory path. If provided, all operations
-                      will be relative to this path. Defaults to current working directory.
+                      will be relative to this path. Options:
+                      - Explicit path parameter (highest priority)
+                      - FILESYSTEM_BASE_PATH environment variable
+                      - Current working directory (default)
+                      
+        Environment Variables:
+            FILESYSTEM_BASE_PATH: Base directory for file operations
+            
+        Examples:
+            >>> # Use current working directory (default)
+            >>> client = FileSystemClient()
+            
+            >>> # Explicit base path
+            >>> client = FileSystemClient(base_path="/path/to/project")
+            
+            >>> # Via environment variable
+            >>> os.environ['FILESYSTEM_BASE_PATH'] = '/path/to/project'
+            >>> client = FileSystemClient()
         """
-        self.base_path = Path(base_path) if base_path else Path.cwd()
+        if base_path:
+            self.base_path = Path(base_path).resolve()
+        else:
+            env_base = os.getenv('FILESYSTEM_BASE_PATH')
+            self.base_path = Path(env_base).resolve() if env_base else Path.cwd()
         
     def _resolve_path(self, path: Union[str, Path]) -> Path:
         """Resolve a path relative to base_path.

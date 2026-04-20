@@ -4,6 +4,7 @@ This module provides a clean interface to interact with the Google Calendar API,
 handling authentication and common calendar operations.
 """
 import json
+import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 from pathlib import Path
@@ -13,6 +14,9 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+
+# Configure logger
+logger = logging.getLogger(__name__)
 
 
 # If modifying these scopes, delete the token.json file.
@@ -26,58 +30,191 @@ class GoogleCalendarClient:
         """Initialize the Google Calendar client.
         
         Args:
-            credentials_path: Path to credentials.json file. Defaults to project root.
-            token_path: Path to token.json file. Defaults to project root.
+            credentials_path: Path to credentials.json file (optional).
+                If not provided, searches in this order:
+                1. GOOGLE_CREDENTIALS_PATH environment variable
+                2. Current working directory
+                3. Parent directories (up to 5 levels)
+            token_path: Path to token.json file (optional).
+                If not provided, uses same directory as credentials.json
             
         Raises:
-            AssertionError: If credentials.json does not exist in the specified location.
+            FileNotFoundError: If credentials.json cannot be found.
+            
+        Environment Variables:
+            GOOGLE_CREDENTIALS_PATH: Path to credentials.json file
+            
+        Examples:
+            >>> # Use default search
+            >>> client = GoogleCalendarClient()
+            
+            >>> # Explicit path
+            >>> client = GoogleCalendarClient(credentials_path=Path("/secure/credentials.json"))
+            
+            >>> # Via environment variable
+            >>> os.environ['GOOGLE_CREDENTIALS_PATH'] = '/path/to/credentials.json'
+            >>> client = GoogleCalendarClient()
         """
-        project_root = Path(__file__).parent.parent.parent
-        self.credentials_path = credentials_path or project_root / 'credentials.json'
-        self.token_path = token_path or project_root / 'token.json'
+        from utils.credentials import find_credentials_path, find_token_path
         
-        # Assert that credentials.json exists before allowing use of the client
-        assert self.credentials_path.exists(), (
-            f"credentials.json not found at {self.credentials_path}. "
-            "Please download it from Google Cloud Console and place it in your project root directory. "
-            "Visit https://console.cloud.google.com/apis/credentials to obtain your credentials file."
+        # Find credentials using flexible search strategy
+        self.credentials_path = find_credentials_path(
+            explicit_path=credentials_path,
+            filename="credentials.json",
+            env_var="GOOGLE_CREDENTIALS_PATH"
+        )
+        
+        # Determine token path (same directory as credentials by default)
+        self.token_path = find_token_path(
+            credentials_path=self.credentials_path,
+            explicit_token_path=token_path,
+            token_filename="token.json"
         )
         
         self._service = None
     
     def _get_credentials(self) -> Credentials:
-        """Get valid credentials for Google Calendar API.
+        """Get valid credentials for Google Calendar API with enhanced error handling.
         
         Returns:
             Valid credentials object.
             
         Raises:
             FileNotFoundError: If credentials.json is not found.
+            ValueError: If credentials are invalid or APIs not enabled.
+            RuntimeError: If authentication fails.
         """
         creds = None
         
         # The token.json stores the user's access and refresh tokens
         if self.token_path.exists():
-            creds = Credentials.from_authorized_user_file(str(self.token_path), SCOPES)
+            try:
+                creds = Credentials.from_authorized_user_file(str(self.token_path), SCOPES)
+                logger.debug(f"Loaded credentials from token: {self.token_path}")
+            except Exception as e:
+                logger.warning(f"Failed to load token file: {e}")
+                logger.info("Will attempt to re-authenticate...")
+                # Delete invalid token and force re-auth
+                self.token_path.unlink(missing_ok=True)
+                creds = None
         
         # If there are no (valid) credentials available, let the user log in
         if not creds or not creds.valid:
             if creds and creds.expired and creds.refresh_token:
-                creds.refresh(Request())
-            else:
+                try:
+                    logger.info("Refreshing expired credentials...")
+                    creds.refresh(Request())
+                    logger.info("✅ Credentials refreshed successfully")
+                except Exception as e:
+                    logger.error(f"Failed to refresh credentials: {e}")
+                    logger.info("Will attempt to re-authenticate...")
+                    # Delete invalid token and force re-auth
+                    self.token_path.unlink(missing_ok=True)
+                    creds = None
+            
+            if not creds:
+                # Need to authenticate
                 if not self.credentials_path.exists():
                     raise FileNotFoundError(
                         f"credentials.json not found at {self.credentials_path}. "
                         "Please download it from Google Cloud Console and place it in the project root."
                     )
-                flow = InstalledAppFlow.from_client_secrets_file(
-                    str(self.credentials_path), SCOPES)
-                creds = flow.run_local_server(port=0)
+                
+                try:
+                    logger.info("🔐 Starting OAuth2 authentication flow...")
+                    logger.info("A browser window will open for you to authorize the application.")
+                    
+                    flow = InstalledAppFlow.from_client_secrets_file(
+                        str(self.credentials_path), SCOPES)
+                    creds = flow.run_local_server(port=0)
+                    
+                    logger.info("✅ Authentication successful!")
+                    
+                except Exception as e:
+                    error_msg = self._build_auth_error_message(e)
+                    logger.error(error_msg)
+                    raise RuntimeError(error_msg) from e
             
             # Save the credentials for the next run
-            self.token_path.write_text(creds.to_json())
+            try:
+                self.token_path.write_text(creds.to_json())
+                logger.debug(f"Saved credentials to: {self.token_path}")
+            except Exception as e:
+                logger.warning(f"Failed to save token file: {e}")
+                logger.warning("Authentication succeeded but token won't persist.")
         
         return creds
+    
+    def _build_auth_error_message(self, error: Exception) -> str:
+        """Build a helpful error message for authentication failures.
+        
+        Args:
+            error: The exception that occurred
+            
+        Returns:
+            Formatted error message with troubleshooting steps
+        """
+        error_str = str(error).lower()
+        
+        # Check for common error patterns
+        if 'access_denied' in error_str:
+            return (
+                "\n❌ Authentication Failed: Access Denied\n"
+                "\nYou denied the authorization request or the consent screen was not completed.\n"
+                "\nTo fix this:\n"
+                "  1. Run the authentication flow again\n"
+                "  2. Make sure to click 'Allow' when prompted\n"
+                "  3. Approve all requested permissions\n"
+            )
+        
+        elif 'invalid_client' in error_str or 'invalid_grant' in error_str:
+            return (
+                "\n❌ Authentication Failed: Invalid Credentials\n"
+                "\nYour credentials.json file may be invalid, expired, or revoked.\n"
+                "\nTo fix this:\n"
+                "  1. Go to https://console.cloud.google.com/apis/credentials\n"
+                "  2. Delete the old OAuth 2.0 Client ID\n"
+                "  3. Create a new one (Desktop app type)\n"
+                "  4. Download the new credentials.json\n"
+                f"  5. Replace the file at: {self.credentials_path}\n"
+                f"  6. Delete the token file: {self.token_path}\n"
+                "  7. Try again\n"
+            )
+        
+        elif 'redirect_uri_mismatch' in error_str:
+            return (
+                "\n❌ Authentication Failed: Redirect URI Mismatch\n"
+                "\nThe OAuth client is not configured for localhost redirects.\n"
+                "\nTo fix this:\n"
+                "  1. Go to https://console.cloud.google.com/apis/credentials\n"
+                "  2. Edit your OAuth 2.0 Client ID\n"
+                "  3. Ensure 'Desktop app' is selected (not Web)\n"
+                "  4. Or manually add http://localhost redirects to authorized URIs\n"
+                "  5. Download updated credentials.json\n"
+            )
+        
+        elif 'api not enabled' in error_str or '403' in error_str:
+            return (
+                "\n❌ Authentication Failed: API Not Enabled\n"
+                "\nThe Calendar API may not be enabled for your project.\n"
+                "\nTo fix this:\n"
+                "  1. Go to https://console.cloud.google.com/apis/library/calendar-json.googleapis.com\n"
+                "  2. Click 'Enable' for the Calendar API\n"
+                "  3. Wait a few minutes for changes to propagate\n"
+                "  4. Try again\n"
+                "\nFor Gmail: https://console.cloud.google.com/apis/library/gmail.googleapis.com\n"
+            )
+        
+        else:
+            return (
+                f"\n❌ Authentication Failed: {error}\n"
+                "\nTroubleshooting steps:\n"
+                "  1. Ensure Calendar API is enabled in Google Cloud Console\n"
+                "  2. Check that credentials.json is valid and not expired\n"
+                "  3. Try deleting token.json and re-authenticating\n"
+                f"  4. Run: python -m utils.verify_credentials\n"
+                "\nFor more help, see: CREDENTIALS_SETUP.md\n"
+            )
     
     @property
     def service(self):

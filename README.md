@@ -4,6 +4,14 @@ Common tooling for agentic applications. This repository provides easy-to-use ut
 
 ## Features
 
+### Gmail Integration
+- ✅ Read, send, and reply to emails
+- ✅ Search messages with Gmail query syntax
+- ✅ Manage labels and organize messages
+- ✅ Create and send drafts
+- ✅ Mark as read/unread, trash/untrash
+- ✅ Full Gmail API support with 14 LangChain tools
+
 ### Google Calendar Integration
 - ✅ List calendars and events
 - ✅ Create, update, and delete events
@@ -22,25 +30,86 @@ Common tooling for agentic applications. This repository provides easy-to-use ut
 ### Prerequisites
 
 1. **Python 3.7+** is required
-2. **Google Cloud Project** with Calendar API enabled (for calendar tools)
-3. **OAuth 2.0 credentials** from Google Cloud Console (for calendar tools)
+2. **Google Cloud Project** with Gmail/Calendar API enabled (for Google tools)
+3. **OAuth 2.0 credentials** from Google Cloud Console (for Google tools)
 4. **OpenAI API Key** (for LangChain agent examples)
 
-### Setup Google Calendar API
+### Setup Google APIs (Gmail & Calendar)
 
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
 2. Create a new project or select an existing one
-3. Enable the Google Calendar API:
+3. Enable the Gmail API and/or Google Calendar API:
    - Navigate to "APIs & Services" > "Library"
-   - Search for "Google Calendar API"
-   - Click "Enable"
+   - Search for "Gmail API" and "Google Calendar API"
+   - Click "Enable" for each API you want to use
 4. Create OAuth 2.0 credentials:
    - Go to "APIs & Services" > "Credentials"
    - Click "Create Credentials" > "OAuth client ID"
    - Choose "Desktop app" as the application type
    - Download the credentials file
 5. **Rename the downloaded file to `credentials.json`**
-6. **Place `credentials.json` in your project root directory**
+
+**Note:** The same `credentials.json` file works for both Gmail and Calendar APIs.
+
+#### Credential Placement Options
+
+The tools support flexible credential discovery. Choose any of these options:
+
+**Option 1: Project Root (Recommended for standalone use)**
+```
+your-project/
+├── credentials.json  ← Place here
+└── common_tools/     ← This repo (if cloned)
+```
+
+**Option 2: Environment Variable (Recommended for deployments)**
+```bash
+export GOOGLE_CREDENTIALS_PATH="/secure/location/credentials.json"
+```
+
+**Option 3: Parent Directory (Works when cloned into another project)**
+```
+my-agent-project/
+├── credentials.json      ← Can be found here
+└── common_tools/         ← Cloned repo
+    ├── gmail/
+    └── calendar/
+```
+
+**Option 4: Explicit Path in Code**
+```python
+from gmail import GmailClient
+client = GmailClient(credentials_path="/custom/path/credentials.json")
+```
+
+The tools automatically search for credentials in this order:
+1. Explicit `credentials_path` parameter
+2. `GOOGLE_CREDENTIALS_PATH` environment variable
+3. Current working directory
+4. Parent directories (up to 5 levels)
+
+This design allows the repository to be cloned into any project structure!
+
+#### Verify Your Setup
+
+Before using the Gmail or Calendar clients, you can verify your credentials are set up correctly:
+
+```bash
+# Run the verification utility
+python -m utils.verify_credentials
+
+# Or for just the setup guide
+python -m utils.verify_credentials --guide
+
+# Quiet mode (just exit code)
+python -m utils.verify_credentials --quiet
+```
+
+This will check:
+- ✅ Credentials file is found and valid
+- ✅ Token file exists (if already authenticated)
+- ✅ Credentials have correct OAuth2 format
+- ✅ Helpful error messages if issues found
 
 ### Install Dependencies
 
@@ -49,6 +118,46 @@ pip install -r requirements.txt
 ```
 
 ## Usage
+
+### Gmail Client
+
+```python
+from gmail import GmailClient
+
+# Initialize the client (requires credentials.json in project root)
+client = GmailClient()
+
+# List recent messages
+messages = client.list_messages(max_results=10)
+for msg in messages:
+    print(f"Message ID: {msg['id']}")
+
+# Search for unread emails
+unread = client.search_messages(query="is:unread", max_results=5)
+for msg in unread:
+    print(f"From: {msg['from']}")
+    print(f"Subject: {msg['subject']}")
+
+# Read a specific message
+message = client.get_message(message_id="abc123")
+print(f"Body: {message['body']['plain']}")
+
+# Send an email
+result = client.send_message(
+    to="recipient@example.com",
+    subject="Hello from Gmail API",
+    body="This is a test email!"
+)
+print(f"Sent! Message ID: {result['id']}")
+
+# Reply to a message
+reply = client.reply_to_message(
+    message_id="abc123",
+    body="Thanks for your email!"
+)
+```
+
+See `gmail/README.md` for comprehensive documentation and `examples/gmail_example.py` for more examples.
 
 ### Google Calendar Client
 
@@ -85,7 +194,14 @@ print(f"Created event: {new_event['htmlLink']}")
 ```python
 from tools import FileSystemClient
 
-# Initialize the client
+# Initialize the client (defaults to current working directory)
+fs = FileSystemClient()
+
+# Or set a base path explicitly
+fs = FileSystemClient(base_path="/path/to/project")
+
+# Or use environment variable
+# export FILESYSTEM_BASE_PATH=/path/to/project
 fs = FileSystemClient()
 
 # Create a file
@@ -170,15 +286,22 @@ See `examples/filesystem_hitl_example.py` for a complete interactive demo.
 ```
 tools/
 ├── __init__.py              # Root module (imports from submodules)
+├── gmail/
+│   ├── __init__.py          # Exports GmailClient and GMAIL_TOOLS
+│   ├── gmail_client.py      # Gmail API implementation
+│   ├── tools.py             # LangChain tool wrappers (14 tools)
+│   └── README.md            # Detailed Gmail documentation
 ├── calendar/
 │   ├── __init__.py          # Exports GoogleCalendarClient
-│   └── google_cal.py        # Google Calendar implementation
+│   ├── google_cal.py        # Google Calendar implementation
+│   └── tools.py             # LangChain tool wrappers
 ├── filesystem/
 │   ├── __init__.py          # Exports FileSystemClient
 │   ├── filesystem_client.py # Filesystem operations implementation
 │   └── tools.py             # LangChain tool wrappers
 ├── examples/
-│   ├── calendar_example.py          # Calendar usage examples
+│   ├── gmail_example.py             # Gmail usage examples
+│   ├── filesystem_example.py        # Filesystem usage demo
 │   └── filesystem_hitl_example.py   # HITL demo with filesystem
 ├── .gitignore               # Excludes credentials and sensitive files
 ├── requirements.txt         # Dependencies
@@ -191,6 +314,20 @@ tools/
 ⚠️ **Never commit `credentials.json` or `token.json` to version control!**
 
 These files contain sensitive authentication data. They are automatically excluded via `.gitignore`, but always double-check before pushing to a public repository.
+
+### Environment Variables
+
+For production deployments, use environment variables:
+
+```bash
+# Google API credentials
+export GOOGLE_CREDENTIALS_PATH="/secure/location/credentials.json"
+
+# Filesystem operations base path
+export FILESYSTEM_BASE_PATH="/app/data"
+```
+
+This keeps sensitive paths out of your code and allows different configurations per environment.
 
 ### Human-in-the-Loop Safety
 
@@ -216,10 +353,6 @@ When adding new tools:
 5. Update this README with usage examples
 6. Update `.gitignore` if new credentials are needed
 7. Consider adding HITL support for sensitive operations
-
-## License
-
-MIT License - See LICENSE file for details
 
 ## Support
 
