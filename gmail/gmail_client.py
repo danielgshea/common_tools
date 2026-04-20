@@ -307,7 +307,7 @@ class GmailClient:
         max_results: int = 10,
         include_spam_trash: bool = False
     ) -> List[Dict[str, Any]]:
-        """List messages from Gmail inbox.
+        """List messages from Gmail inbox with full details.
         
         Args:
             query: Gmail search query (e.g., "is:unread", "from:user@example.com")
@@ -316,7 +316,7 @@ class GmailClient:
             include_spam_trash: Include spam and trash in results (default: False)
             
         Returns:
-            List of message dictionaries with basic info (id, threadId, snippet)
+            List of message dictionaries with details (id, threadId, subject, from, to, date, snippet)
             
         Raises:
             HttpError: If the API request fails.
@@ -336,12 +336,34 @@ class GmailClient:
             results = self.service.users().messages().list(**params).execute()
             messages = results.get('messages', [])
             
+            # Fetch full details for each message
             message_list = []
             for msg in messages:
-                message_list.append({
-                    'id': msg['id'],
-                    'threadId': msg['threadId']
-                })
+                try:
+                    # Get message with metadata format (headers but no body)
+                    full_msg = self.service.users().messages().get(
+                        userId='me',
+                        id=msg['id'],
+                        format='metadata',
+                        metadataHeaders=['From', 'To', 'Subject', 'Date']
+                    ).execute()
+                    
+                    # Parse headers
+                    headers = self._parse_message_headers(full_msg.get('payload', {}).get('headers', []))
+                    
+                    message_list.append({
+                        'id': full_msg['id'],
+                        'threadId': full_msg['threadId'],
+                        'snippet': full_msg.get('snippet', ''),
+                        'from': headers.get('from', ''),
+                        'to': headers.get('to', ''),
+                        'subject': headers.get('subject', ''),
+                        'date': headers.get('date', ''),
+                        'labelIds': full_msg.get('labelIds', [])
+                    })
+                except HttpError:
+                    # If we can't get details for a message, skip it
+                    continue
             
             return message_list
             

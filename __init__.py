@@ -5,12 +5,12 @@ into agentic applications.
 
 Available modules:
     - gmail: Gmail API client for managing email
-    - calendar: Google Calendar API client for managing calendar events
+    - gcalendar: Google Calendar API client for managing calendar events (renamed from 'calendar' to avoid stdlib conflicts)
     - filesystem: File system operations with LangChain tool support
     
 Import these modules directly when needed:
     from gmail import GmailClient, GMAIL_TOOLS
-    from calendar import GoogleCalendarClient, CALENDAR_TOOLS
+    from gcalendar import GoogleCalendarClient, CALENDAR_TOOLS
     from filesystem import FileSystemClient
 """
 
