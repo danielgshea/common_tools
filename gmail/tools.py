@@ -3,7 +3,7 @@ import json
 from typing import List, Optional
 from langchain_core.tools import tool
 from googleapiclient.errors import HttpError
-from gmail.gmail_client import GmailClient
+from .gmail_client import GmailClient
 
 # Initialize the Gmail client (will be created on first use)
 _gmail_client = None

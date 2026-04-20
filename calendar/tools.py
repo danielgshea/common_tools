@@ -3,7 +3,7 @@ import json
 from typing import List, Optional
 from langchain_core.tools import tool
 from googleapiclient.errors import HttpError
-from calendar.google_cal import GoogleCalendarClient
+from .google_cal import GoogleCalendarClient
 
 # Initialize the calendar client (will be created on first use)
 _calendar_client = None
