@@ -9,7 +9,7 @@ import logging
 from pathlib import Path
 from typing import Dict, Any, List, Tuple
 
-from utils.credentials import find_credentials_path
+from ..utils.credentials import find_credentials_path
 
 # Configure colorful logging
 logging.basicConfig(

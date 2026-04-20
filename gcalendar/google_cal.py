@@ -55,7 +55,21 @@ class GoogleCalendarClient:
             >>> os.environ['GOOGLE_CREDENTIALS_PATH'] = '/path/to/credentials.json'
             >>> client = GoogleCalendarClient()
         """
-        from utils.credentials import find_credentials_path, find_token_path
+        # Robust import that works in all contexts:
+        # 1. As subdirectory in parent project (relative import)
+        # 2. Standalone/testing (absolute import)
+        # 3. Direct execution (sys.path fallback)
+        try:
+            from ..utils.credentials import find_credentials_path, find_token_path
+        except (ImportError, ValueError):
+            # Fallback for standalone usage or testing
+            try:
+                from utils.credentials import find_credentials_path, find_token_path
+            except ImportError:
+                # Last resort: add parent to path
+                import sys
+                sys.path.insert(0, str(Path(__file__).parent.parent))
+                from utils.credentials import find_credentials_path, find_token_path
         
         # Find credentials using flexible search strategy
         self.credentials_path = find_credentials_path(
